@@ -3,11 +3,11 @@
   "version": "3.0.0",
   "description": "An AWS CDK plugin which implements profiles, IAM roles, MFA, and AWS SSO for complex multi-account projects",
   "main": "lib/index.js",
-  "author": "Cloudmation LLC (@mrapczynski)",
+  "author": "Cloudmation LLC (@mrapczynski) / Cumulus Technology",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cloudmation-llc/cdk-cross-account-plugin"
+    "url": "https://github.com/Cumulus-Technology/cdk-cross-account-plugin"
   },
   "scripts": {
     "build": "tsc",
