@@ -1,0 +1,20 @@
+name: Restore repository visibility
+
+# Fires once on 2026-07-07 to re-open the repo after GitHub GC has had
+# time to purge the dangling commit that contained internal account info.
+# Safe to leave in place after it runs — gh repo edit is idempotent.
+on:
+  schedule:
+    - cron: '17 9 7 7 *'   # 09:17 UTC on July 7 every year (no-op after first run)
+  workflow_dispatch:         # allow manual trigger if needed earlier
+
+jobs:
+  restore-public:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🔓 Make repository public
+        env:
+          GH_TOKEN: ${{ secrets.RESTORE_VISIBILITY_TOKEN }}
+        run: |
+          gh repo edit ${{ github.repository }} --visibility public --accept-visibility-change-consequences
+          echo "✅ ${{ github.repository }} is now public."
