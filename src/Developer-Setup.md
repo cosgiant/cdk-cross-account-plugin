@@ -56,13 +56,10 @@ The compiled output is written to `lib/index.js`. This file is what consumers of
 
 ## Run Tests
 
+### Unit tests (no AWS credentials needed)
+
 ```bash
 npm test
-```
-
-Coverage report:
-
-```bash
 npm run test:coverage
 ```
 
@@ -74,6 +71,29 @@ resolution paths (local cache hit, SSO, named profile with MFA).
 > dependency chain (specifically `js-yaml` inside `@istanbuljs/load-nyc-config`).
 > These never ship to users. Use `npm run audit:prod` to check only the production
 > surface, which is always 0 vulnerabilities.
+
+### Integration tests (requires active SSO session)
+
+Integration tests in `tests/integration/sso.test.ts` exercise the real AWS SDK v3
+SSO flow end-to-end — no mocks. They auto-skip if no fresh SSO token is detected.
+
+```bash
+# 1. Set your target profile and account
+export CDK_PLUGIN_TEST_PROFILE=<your-sso-profile>
+export CDK_PLUGIN_TEST_ACCOUNT=<aws-account-id>
+
+# 2. Authenticate
+aws sso login --profile $CDK_PLUGIN_TEST_PROFILE
+
+# 3. Run integration suite
+npm run test:integration
+```
+
+The suite verifies:
+
+- `canProvideCredentials` reads `cdk.json` and matches the configured account
+- `getProvider` calls `SSOClient.GetRoleCredentials` and returns a valid credential shape
+- A second call for the same account returns the cached value (no second AWS API call)
 
 ## Audit Dependencies
 
