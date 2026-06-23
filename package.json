@@ -14,12 +14,12 @@
     "build-live": "tsc --watch"
   },
   "dependencies": {
-    "conf": "7.1.2",
+    "conf": "15.1.0",
     "date-fns": "2.16.1",
     "debug": "4.3.1",
     "dot-prop": "6.0.0",
     "fs-jetpack": "3.1.0",
-    "inquirer": "7.3.3"
+    "inquirer": "14.0.2"
   },
   "devDependencies": {
     "@types/node": "^18.17.1",
