@@ -1,10 +1,19 @@
-import { CredentialProviderSource, Mode, Plugin, PluginHost } from 'aws-cdk';
-import { Credentials, IniLoader, SharedIniFileCredentials, SSO } from 'aws-sdk';
+import {
+    CredentialProviderSource,
+    ForReading,
+    ForWriting,
+    IPluginHost,
+    Plugin,
+    SDKv3CompatibleCredentials,
+} from '@aws-cdk/cli-plugin-contract';
+import { SSOClient, GetRoleCredentialsCommand } from '@aws-sdk/client-sso';
+import { fromIni } from '@aws-sdk/credential-providers';
+import { parseKnownFiles } from '@smithy/shared-ini-file-loader';
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { resolve as resolvePath } from 'path';
 import { get, has } from 'dot-prop';
-import { prompt } from 'inquirer';
+import { input } from '@inquirer/prompts';
 import { find as findFiles, read as readFile } from 'fs-jetpack';
 import { formatDistance } from 'date-fns';
 import Conf from 'conf';
@@ -12,33 +21,15 @@ import Debug from 'debug';
 
 const log = Debug('cdk-cross-account-plugin');
 
-/**
- * Utility function to ask the user for an MFA code
- * @param mfaSerial
- * @param callback 
- */
-function getTokenCode(profileName: string, mfaSerial: string, callback: (err?: Error, token?: string) => void) {
-    // Prompt the user to enter an MFA token from a configured device
-    prompt([
-        {
-            type: 'string',
-            name: 'tokenCode',
-            message: `Enter the MFA code for ${mfaSerial} (profile: ${profileName})`
-        }     
-    ])
-    .then(answers => callback(null, answers.tokenCode))
-    .catch(error => callback(error))
+function getTokenCode(profileName: string, mfaSerial: string): Promise<string> {
+    return input({ message: `Enter the MFA code for ${mfaSerial} (profile: ${profileName})` });
 }
 
-/**
- * The CredentialProviderSource is the core of the plugin, and contains behavior to resolve
- * AWS credentials based on an account ID.
- */
 class CrossAccountCredentialProvider implements CredentialProviderSource {
-    
-    name: string;
-    cdkConfig: object;
-    crossAccountConfig: object;
+
+    name = 'cdk-cross-account-plugin';
+    cdkConfig: object = {};
+    crossAccountConfig: object = {};
     pluginConfig: Conf;
 
     constructor() {
@@ -51,162 +42,136 @@ class CrossAccountCredentialProvider implements CredentialProviderSource {
     }
 
     canProvideCredentials(accountId: string): Promise<boolean> {
-        // Load cdk.json if found
-        let pathCdkConfig: string = `${process.cwd()}/cdk.json`;
-        if(existsSync('cdk.json')) {            
-            // Parse cdk.json
+        const pathCdkConfig = `${process.cwd()}/cdk.json`;
+        if (existsSync('cdk.json')) {
             this.cdkConfig = JSON.parse(readFileSync(pathCdkConfig, { encoding: 'utf8' }));
 
-            // Check that a cross account configuration exists in any form
-            this.crossAccountConfig = get(this.cdkConfig, `crossAccountConfig`, undefined);
-            if(this.crossAccountConfig === undefined) {
-                // Bail out if there is no configuration
-                return Promise.resolve(false);        
+            this.crossAccountConfig = get(this.cdkConfig, 'crossAccountConfig') as object ?? {};
+            if (Object.keys(this.crossAccountConfig).length === 0) {
+                return Promise.resolve(false);
             }
             log(`Found cross account plugin config %o`, this.crossAccountConfig);
 
-            // Check if a config exists for the requested account
-            if(has(this.crossAccountConfig, accountId)) {
+            if (has(this.crossAccountConfig, accountId)) {
                 log(`Found config for account ${accountId}`);
                 return Promise.resolve(true);
-            }            
+            }
         }
-        
+
         return Promise.resolve(false);
     }
 
-    getProvider(accountId: string, mode: Mode): Promise<Credentials> {
-        // Get the config by account ID
-        let config: Record<string, any> = get(this.crossAccountConfig, accountId);
+    getProvider(accountId: string, _mode: ForReading | ForWriting): Promise<SDKv3CompatibleCredentials> {
+        const config: Record<string, any> = get(this.crossAccountConfig, accountId) as Record<string, any>;
 
-        // Determine the method to use for resolving credentials
-        if(config.profile) {
-            // Use a named profile
+        if (config.profile) {
             return this.resolveWithProfile(config.profile, accountId);
-        }    
+        }
+
+        return Promise.reject(new Error(`No profile configured for account ${accountId}`));
     }
 
-    resolveWithProfile(profileName: string, targetAccount: string): Promise<Credentials> {
+    async resolveWithProfile(profileName: string, targetAccount: string): Promise<SDKv3CompatibleCredentials> {
         log(`Resolving credentials with named profile ${profileName}`);
 
-        // Check for cached credentials
-        if(this.pluginConfig.has(`credentialCache.${profileName}`)) {
-            // Check if cached credentials are expired
-            let cachedCredentials: Record<string, any> = this.pluginConfig.get(`credentialCache.${profileName}`);
-            let now: number = new Date().getTime();
-            let expires: number = new Date(<string>cachedCredentials.expireTime).getTime();
-            if(now < expires) {
-                let timeRemaining: string = formatDistance(now, expires);
+        if (this.pluginConfig.has(`credentialCache.${profileName}`)) {
+            const cachedCredentials = this.pluginConfig.get(`credentialCache.${profileName}`) as Record<string, any>;
+            const now = new Date().getTime();
+            const expires = new Date(cachedCredentials.expireTime as string).getTime();
+            if (now < expires) {
+                const timeRemaining = formatDistance(now, expires);
                 log(`Using existing valid cached credentials (expires in ${timeRemaining})`);
-                
-                return Promise.resolve(new Credentials({
-                    accessKeyId: cachedCredentials.accessKeyId,
-                    secretAccessKey: cachedCredentials.secretAccessKey,
-                    sessionToken: cachedCredentials.sessionToken
-                }));
-            }
 
+                return {
+                    accessKeyId: cachedCredentials.accessKeyId as string,
+                    secretAccessKey: cachedCredentials.secretAccessKey as string,
+                    sessionToken: cachedCredentials.sessionToken as string | undefined,
+                    expiration: new Date(cachedCredentials.expireTime as string),
+                };
+            }
             log(`Cached credentials have expired`);
         }
 
-        // Load locally defined AWS profiles
-        let profileLoader: IniLoader = new IniLoader();
-        let profiles = profileLoader.loadFrom({ isConfig: true });
-        let profile: Record<string, any> = profiles[profileName];
+        const profiles = await parseKnownFiles({ configFilepath: resolvePath(homedir(), '.aws', 'config') });
+        const profile = profiles[profileName] as Record<string, any> | undefined;
 
-        // Validate
-        if(profile === undefined) {
-            return Promise.reject(new Error(`Unable to find AWS named config profile ${profileName}`))
+        if (profile === undefined) {
+            throw new Error(`Unable to find AWS named config profile ${profileName}`);
         }
 
-        // Determine if SSO is used for authentication
-        if(profile.sso_start_url) {
-            // Resolve and validate SSO cache directory created by v2 CLI
-            let ssoCacheDirectory: string = resolvePath(homedir(), '.aws', 'sso', 'cache');
+        if (profile.sso_start_url) {
+            const ssoCacheDirectory = resolvePath(homedir(), '.aws', 'sso', 'cache');
             log(`Checking SSO cache directory ${ssoCacheDirectory}`);
-        
-            if(!(existsSync(ssoCacheDirectory))) {
-                return Promise.reject(new Error(`SSO cache directory not found - have you logged into AWS SSO first?`));
+
+            if (!existsSync(ssoCacheDirectory)) {
+                throw new Error(`SSO cache directory not found - have you logged into AWS SSO first?`);
             }
             log(`SSO cache directory found (possibly logged in)`);
 
-            // Search .json files that contain cached tokens (ignoring botocore files)
-            let ssoToken: Record<string, any> = findFiles(ssoCacheDirectory, { matching: ['*.json', '!botocore*'], recursive: false })
-                .map(path => readFile(path, 'json'))
-                .find(cachedToken => {
-                    // Parse expiration date
-                    cachedToken.expiresAtNative = new Date(cachedToken.expiresAt.replace('UTC', '+00:00'));
+            const ssoToken = findFiles(ssoCacheDirectory, { matching: ['*.json', '!botocore*'], recursive: false })
+                .map((path: string) => readFile(path, 'json') as Record<string, any>)
+                .find((cachedToken: Record<string, any>) => {
+                    cachedToken.expiresAtNative = new Date((cachedToken.expiresAt as string).replace('UTC', '+00:00'));
                     cachedToken.now = new Date();
-
-                    // Match for SSO start URL and token is not expired
                     return cachedToken.startUrl === profile.sso_start_url
                         && cachedToken.region === profile.sso_region
                         && cachedToken.now < cachedToken.expiresAtNative;
                 });
 
-            // Validate
-            if(ssoToken === undefined) {
-                return Promise.reject(new Error(`SSO session for ${profile.sso_start_url} is expired - have you logged into AWS SSO first?`));     
+            if (ssoToken === undefined) {
+                throw new Error(`SSO session for ${profile.sso_start_url} is expired - have you logged into AWS SSO first?`);
             }
 
-            // Create SSO client
-            let ssoClient: SSO = new SSO({
-                region: profile.sso_region
-            });
+            const ssoClient = new SSOClient({ region: profile.sso_region as string });
+            log(`Getting credentials from STS with SSO session role=${profile.sso_role_name} account=${targetAccount}`);
 
-            // Resolve STS credentials from SSO service
-            log(`Getting credentials from STS with SSO session role=${profile.sso_role_name} account=${targetAccount}`)
-            return ssoClient
-                .getRoleCredentials({
-                    roleName: profile.sso_role_name,
-                    accountId: targetAccount,
-                    accessToken: ssoToken.accessToken
-                })
-                .promise()
-                .then(response => {       
-                    return new Credentials({
-                        accessKeyId: response.roleCredentials.accessKeyId,
-                        secretAccessKey: response.roleCredentials.secretAccessKey,
-                        sessionToken: response.roleCredentials.sessionToken
-                    });
-                });
+            const response = await ssoClient.send(new GetRoleCredentialsCommand({
+                roleName: profile.sso_role_name as string,
+                accountId: targetAccount,
+                accessToken: ssoToken.accessToken as string,
+            }));
+
+            if (!response.roleCredentials) {
+                throw new Error(`SSO returned no role credentials for account ${targetAccount}`);
+            }
+
+            return {
+                accessKeyId: response.roleCredentials.accessKeyId!,
+                secretAccessKey: response.roleCredentials.secretAccessKey!,
+                sessionToken: response.roleCredentials.sessionToken,
+                expiration: response.roleCredentials.expiration
+                    ? new Date(response.roleCredentials.expiration * 1000)
+                    : undefined,
+            };
         }
 
-        // Create provider with defaults
-        let provider: SharedIniFileCredentials = new SharedIniFileCredentials({
+        const provider = fromIni({
             profile: profileName,
-            tokenCodeFn: getTokenCode.bind(null, profileName)
-        }); 
+            mfaCodeProvider: (mfaSerial: string) => getTokenCode(profileName, mfaSerial),
+        });
 
-        // Resolve credentials
-        return provider
-            .getPromise()
-            .then(() => {
-                // Cache in local config
-                this.pluginConfig.set(`credentialCache.${profileName}.accessKeyId`, provider.accessKeyId);
-                this.pluginConfig.set(`credentialCache.${profileName}.secretAccessKey`, provider.secretAccessKey);
-                this.pluginConfig.set(`credentialCache.${profileName}.sessionToken`, provider.sessionToken);
-                this.pluginConfig.set(`credentialCache.${profileName}.expireTime`, provider.expireTime.toISOString());
-                log(`Saved new credentials to local plugin cache ${this.pluginConfig.path}`);
+        const creds = await provider();
 
-                // Return credentials to the CDK
-                return new Credentials({
-                    accessKeyId: provider.accessKeyId,
-                    secretAccessKey: provider.secretAccessKey,
-                    sessionToken: provider.sessionToken
-                });
-            });
+        this.pluginConfig.set(`credentialCache.${profileName}.accessKeyId`, creds.accessKeyId);
+        this.pluginConfig.set(`credentialCache.${profileName}.secretAccessKey`, creds.secretAccessKey);
+        this.pluginConfig.set(`credentialCache.${profileName}.sessionToken`, creds.sessionToken);
+        this.pluginConfig.set(`credentialCache.${profileName}.expireTime`, creds.expiration?.toISOString() ?? '');
+        log(`Saved new credentials to local plugin cache ${this.pluginConfig.path}`);
+
+        return {
+            accessKeyId: creds.accessKeyId,
+            secretAccessKey: creds.secretAccessKey,
+            sessionToken: creds.sessionToken,
+            expiration: creds.expiration,
+        };
     }
 }
 
-/**
- * The CDK plugin.
- */
-class CrossAccountCDKPlugin implements Plugin { 
+class CrossAccountCDKPlugin implements Plugin {
 
     public readonly version = '1';
 
-    init(host: PluginHost) { 
+    init(host: IPluginHost) {
         log(`Loading cross account CDK plugin`);
 
         host.registerCredentialProviderSource(

@@ -14,20 +14,25 @@
     "build-live": "tsc --watch"
   },
   "dependencies": {
+    "@aws-sdk/client-sso": "3.1075.0",
+    "@aws-sdk/credential-providers": "3.1075.0",
+    "@smithy/shared-ini-file-loader": "4.6.2",
     "conf": "15.1.0",
     "date-fns": "2.16.1",
     "debug": "4.3.1",
     "dot-prop": "6.0.0",
     "fs-jetpack": "3.1.0",
-    "inquirer": "14.0.2"
+    "@inquirer/prompts": "8.5.2"
   },
   "devDependencies": {
+    "@aws-cdk/cli-plugin-contract": "2.182.2",
+    "@types/debug": "4.1.13",
     "@types/node": "^18.17.1",
-    "eslint": "^8.48.0"
+    "eslint": "^8.48.0",
+    "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "c9": "^3.1.3534",
     "aws-cdk": "^2.95.1",
-    "aws-sdk": "^2.1455.0"
+    "c9": "^3.1.3534"
   }
 }
