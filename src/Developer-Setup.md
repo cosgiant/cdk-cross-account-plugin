@@ -54,6 +54,27 @@ npm run build-live
 
 The compiled output is written to `lib/index.js`. This file is what consumers of the package actually execute, so it must be committed alongside source changes.
 
+## Run Tests
+
+```bash
+npm test
+```
+
+Coverage report:
+
+```bash
+npm run test:coverage
+```
+
+Tests live in `tests/index.test.ts` and cover all code paths in `src/index.ts`:
+plugin registration, `canProvideCredentials`, `getProvider`, and the three credential
+resolution paths (local cache hit, SSO, named profile with MFA).
+
+> **Note:** `npm audit` will report dev-only vulnerabilities from Jest's transitive
+> dependency chain (specifically `js-yaml` inside `@istanbuljs/load-nyc-config`).
+> These never ship to users. Use `npm run audit:prod` to check only the production
+> surface, which is always 0 vulnerabilities.
+
 ## Audit Dependencies
 
 ```bash

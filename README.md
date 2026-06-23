@@ -108,10 +108,23 @@ cdk deploy
 
 ---
 
+## Testing
+
+The plugin ships with a unit test suite that mocks all I/O and AWS SDK calls:
+
+```bash
+npm test
+npm run test:coverage
+```
+
+Tests cover: plugin registration, `canProvideCredentials` (all branches), `getProvider` error paths, the credential cache hit path, the SSO path, and the named profile/MFA path.
+
+---
+
 ## Compatibility
 
 | Plugin version | CDK version | AWS SDK |
-|---|---|---|
+| --- | --- | --- |
 | 3.x | v2 (≥ 2.95.1) | AWS SDK v3 |
 | 2.x | v2 | AWS SDK v2 (EOL) |
 | 1.x | v1 | AWS SDK v2 (EOL) |

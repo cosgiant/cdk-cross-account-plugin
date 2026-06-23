@@ -62,7 +62,11 @@ class CrossAccountCredentialProvider implements CredentialProviderSource {
     }
 
     getProvider(accountId: string, _mode: ForReading | ForWriting): Promise<SDKv3CompatibleCredentials> {
-        const config: Record<string, any> = get(this.crossAccountConfig, accountId) as Record<string, any>;
+        const config = get(this.crossAccountConfig, accountId) as Record<string, any> | undefined;
+
+        if (!config) {
+            return Promise.reject(new Error(`No configuration found for account ${accountId}`));
+        }
 
         if (config.profile) {
             return this.resolveWithProfile(config.profile, accountId);
