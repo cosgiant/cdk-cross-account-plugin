@@ -13,16 +13,22 @@ import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { resolve as resolvePath } from 'path';
 import { get, has } from 'dot-prop';
-import { input } from '@inquirer/prompts';
+import { createInterface } from 'readline';
 import { find as findFiles, read as readFile } from 'fs-jetpack';
 import { formatDistance } from 'date-fns';
-import Conf from 'conf';
+import { JsonStore } from './store';
 import Debug from 'debug';
 
 const log = Debug('cdk-cross-account-plugin');
 
 function getTokenCode(profileName: string, mfaSerial: string): Promise<string> {
-    return input({ message: `Enter the MFA code for ${mfaSerial} (profile: ${profileName})` });
+    return new Promise((resolve) => {
+        const rl = createInterface({ input: process.stdin, output: process.stderr });
+        rl.question(`MFA token for ${mfaSerial} (profile: ${profileName}): `, (answer) => {
+            rl.close();
+            resolve(answer.trim());
+        });
+    });
 }
 
 class CrossAccountCredentialProvider implements CredentialProviderSource {
@@ -30,10 +36,10 @@ class CrossAccountCredentialProvider implements CredentialProviderSource {
     name = 'cdk-cross-account-plugin';
     cdkConfig: object = {};
     crossAccountConfig: object = {};
-    pluginConfig: Conf;
+    pluginConfig: JsonStore;
 
     constructor() {
-        this.pluginConfig = new Conf();
+        this.pluginConfig = new JsonStore();
         log(`Using local plugin config storage at ${this.pluginConfig.path}`);
     }
 

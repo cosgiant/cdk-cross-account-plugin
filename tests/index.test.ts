@@ -29,21 +29,21 @@ jest.mock('fs-jetpack', () => ({
     read: jest.fn(),
 }));
 
-jest.mock('conf', () => {
-    const mockConf = {
+jest.mock('../src/store', () => {
+    const mockStore = {
         has: jest.fn(),
         get: jest.fn(),
         set: jest.fn(),
         path: '/tmp/test-plugin-config',
     };
-    return {
-        __esModule: true,
-        default: jest.fn(() => mockConf),
-    };
+    return { JsonStore: jest.fn(() => mockStore) };
 });
 
-jest.mock('@inquirer/prompts', () => ({
-    input: jest.fn(),
+jest.mock('readline', () => ({
+    createInterface: jest.fn().mockReturnValue({
+        question: jest.fn((_prompt: string, cb: (a: string) => void) => cb('123456')),
+        close: jest.fn(),
+    }),
 }));
 
 jest.mock('debug', () => jest.fn(() => jest.fn()));
@@ -55,7 +55,7 @@ import { SSOClient, GetRoleCredentialsCommand } from '@aws-sdk/client-sso';
 import { fromIni } from '@aws-sdk/credential-providers';
 import { parseKnownFiles } from '@smithy/shared-ini-file-loader';
 import { find as findFiles, read as readFile } from 'fs-jetpack';
-import Conf from 'conf';
+import { JsonStore } from '../src/store';
 
 // Load the plugin singleton
 const plugin = require('../src/index');
@@ -70,8 +70,8 @@ function getRegisteredSource(): CredentialProviderSource {
     return (mockHost.registerCredentialProviderSource as jest.Mock).mock.calls[0][0];
 }
 
-function mockConf() {
-    return (Conf as jest.Mock).mock.results[0].value as {
+function mockStore() {
+    return (JsonStore as jest.Mock).mock.results[0].value as {
         has: jest.Mock;
         get: jest.Mock;
         set: jest.Mock;
@@ -198,10 +198,10 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — cache', () => {
 
     it('returns cached credentials when they are still valid', async () => {
         const source = setupSource();
-        const conf = mockConf();
+        const store = mockStore();
         const futureExpiry = new Date(Date.now() + 3600_000).toISOString();
-        conf.has.mockReturnValue(true);
-        conf.get.mockReturnValue({
+        store.has.mockReturnValue(true);
+        store.get.mockReturnValue({
             accessKeyId: 'CACHED_KEY',
             secretAccessKey: 'CACHED_SECRET',
             sessionToken: 'CACHED_TOKEN',
@@ -218,10 +218,10 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — cache', () => {
 
     it('falls through to re-resolve when cached credentials are expired', async () => {
         const source = setupSource();
-        const conf = mockConf();
+        const store = mockStore();
         const pastExpiry = new Date(Date.now() - 3600_000).toISOString();
-        conf.has.mockReturnValue(true);
-        conf.get.mockReturnValue({
+        store.has.mockReturnValue(true);
+        store.get.mockReturnValue({
             accessKeyId: 'OLD_KEY',
             secretAccessKey: 'OLD_SECRET',
             expireTime: pastExpiry,
@@ -246,8 +246,8 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — cache', () => {
 
     it('falls through to re-resolve when no cached entry exists', async () => {
         const source = setupSource();
-        const conf = mockConf();
-        conf.has.mockReturnValue(false);
+        const store = mockStore();
+        store.has.mockReturnValue(false);
         (parseKnownFiles as jest.Mock).mockResolvedValue({
             dev: { region: 'us-east-1' },
         });
@@ -272,8 +272,8 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — profile not foun
     it('throws when the profile does not exist in ~/.aws/config', async () => {
         const source = getRegisteredSource();
         (source as any).crossAccountConfig = { '123456789012': { profile: 'nonexistent' } };
-        const conf = mockConf();
-        conf.has.mockReturnValue(false);
+        const store = mockStore();
+        store.has.mockReturnValue(false);
         (parseKnownFiles as jest.Mock).mockResolvedValue({}); // empty — profile not found
 
         await expect(
@@ -297,7 +297,7 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — SSO', () => {
     function setupSsoSource() {
         const source = getRegisteredSource();
         (source as any).crossAccountConfig = { '123456789012': { profile: 'sso-dev' } };
-        mockConf().has.mockReturnValue(false);
+        mockStore().has.mockReturnValue(false);
         (parseKnownFiles as jest.Mock).mockResolvedValue({ 'sso-dev': SSO_PROFILE });
         return source;
     }
@@ -434,7 +434,7 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — named profile / 
     function setupPlainSource() {
         const source = getRegisteredSource();
         (source as any).crossAccountConfig = { '123456789012': { profile: 'prod' } };
-        mockConf().has.mockReturnValue(false);
+        mockStore().has.mockReturnValue(false);
         (parseKnownFiles as jest.Mock).mockResolvedValue({ prod: PLAIN_PROFILE });
         return source;
     }
@@ -460,7 +460,7 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — named profile / 
 
     it('caches resolved credentials in pluginConfig', async () => {
         const source = setupPlainSource();
-        const conf = mockConf();
+        const store = mockStore();
         const expiration = new Date('2099-06-01T00:00:00Z');
         const mockProvider = jest.fn().mockResolvedValue({
             accessKeyId: 'INI_KEY',
@@ -472,10 +472,10 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — named profile / 
 
         await (source as any).resolveWithProfile('prod', '123456789012');
 
-        expect(conf.set).toHaveBeenCalledWith('credentialCache.prod.accessKeyId', 'INI_KEY');
-        expect(conf.set).toHaveBeenCalledWith('credentialCache.prod.secretAccessKey', 'INI_SECRET');
-        expect(conf.set).toHaveBeenCalledWith('credentialCache.prod.sessionToken', 'INI_TOKEN');
-        expect(conf.set).toHaveBeenCalledWith('credentialCache.prod.expireTime', expiration.toISOString());
+        expect(store.set).toHaveBeenCalledWith('credentialCache.prod.accessKeyId', 'INI_KEY');
+        expect(store.set).toHaveBeenCalledWith('credentialCache.prod.secretAccessKey', 'INI_SECRET');
+        expect(store.set).toHaveBeenCalledWith('credentialCache.prod.sessionToken', 'INI_TOKEN');
+        expect(store.set).toHaveBeenCalledWith('credentialCache.prod.expireTime', expiration.toISOString());
     });
 
     it('passes the profile name to fromIni', async () => {
@@ -507,7 +507,7 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — named profile / 
 
     it('handles missing expiration gracefully (stores empty string in cache)', async () => {
         const source = setupPlainSource();
-        const conf = mockConf();
+        const store = mockStore();
         const mockProvider = jest.fn().mockResolvedValue({
             accessKeyId: 'K',
             secretAccessKey: 'S',
@@ -518,6 +518,6 @@ describe('CrossAccountCredentialProvider.resolveWithProfile — named profile / 
         const result = await (source as any).resolveWithProfile('prod', '123456789012');
 
         expect(result.expiration).toBeUndefined();
-        expect(conf.set).toHaveBeenCalledWith('credentialCache.prod.expireTime', '');
+        expect(store.set).toHaveBeenCalledWith('credentialCache.prod.expireTime', '');
     });
 });
