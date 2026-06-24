@@ -56,6 +56,9 @@ export class JsonStore {
             obj = obj[part] as Record<string, unknown>;
         }
         const lastPart = parts[parts.length - 1];
+        if (lastPart.length === 0 || JsonStore.FORBIDDEN_PATH_SEGMENTS.has(lastPart)) {
+            throw new Error('Invalid key: contains forbidden or empty path segment');
+        }
         obj[lastPart] = value;
         writeFileSync(this.path, JSON.stringify(this.data, null, 2));
     }
