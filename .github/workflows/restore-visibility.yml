@@ -8,6 +8,8 @@ on:
     - cron: '17 9 7 7 *'   # 09:17 UTC on July 7 every year (no-op after first run)
   workflow_dispatch:         # allow manual trigger if needed earlier
 
+permissions: {}             # GITHUB_TOKEN is unused — auth is via RESTORE_VISIBILITY_TOKEN
+
 jobs:
   restore-public:
     runs-on: ubuntu-latest
