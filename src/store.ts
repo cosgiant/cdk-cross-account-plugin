@@ -35,19 +35,22 @@ export class JsonStore {
 
     set(key: string, value: unknown): void {
         const parts = key.split('.');
-        if (parts.some((part) => JsonStore.FORBIDDEN_PATH_SEGMENTS.has(part))) {
-            throw new Error('Invalid key: contains forbidden path segment');
-        }
         let obj = this.data as Record<string, unknown>;
         for (let i = 0; i < parts.length - 1; i++) {
-            if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) {
-                // Object.create(null) has no prototype to pollute, even if a
-                // forbidden segment were ever to slip past the check above.
-                obj[parts[i]] = Object.create(null) as Record<string, unknown>;
+            const part = parts[i];
+            if (JsonStore.FORBIDDEN_PATH_SEGMENTS.has(part)) {
+                throw new Error('Invalid key: contains forbidden path segment');
             }
-            obj = obj[parts[i]] as Record<string, unknown>;
+            if (!Object.prototype.hasOwnProperty.call(obj, part) || typeof obj[part] !== 'object' || obj[part] === null) {
+                obj[part] = Object.create(null) as Record<string, unknown>;
+            }
+            obj = obj[part] as Record<string, unknown>;
         }
-        obj[parts[parts.length - 1]] = value;
+        const lastPart = parts[parts.length - 1];
+        if (JsonStore.FORBIDDEN_PATH_SEGMENTS.has(lastPart)) {
+            throw new Error('Invalid key: contains forbidden path segment');
+        }
+        obj[lastPart] = value;
         writeFileSync(this.path, JSON.stringify(this.data, null, 2));
     }
 }
