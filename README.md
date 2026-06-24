@@ -13,7 +13,7 @@ The [AWS CDK](https://docs.aws.amazon.com/cdk/index.html) supports authenticatio
 
 ## Requirements
 
-- Node.js 18 or later
+- Node.js 22 or later — Node 18 and 20 are both end-of-life; the AWS CDK CLI itself now refuses anything older than 22
 - AWS CDK v2
 - AWS CLI v2 (required for SSO login)
 
