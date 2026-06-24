@@ -23,9 +23,24 @@ The [AWS CDK](https://docs.aws.amazon.com/cdk/index.html) supports authenticatio
 
 ### Step 1 — Install the plugin
 
+This fork is not published to npm (the upstream package on the public registry,
+`Cumulus-Technology/cdk-cross-account-plugin`, is unmaintained — see
+[Compatibility](#compatibility)). This repo is also `internal` visibility
+(org members only), so install by cloning and running the provided script,
+pinned to a release tag:
+
 ```bash
-npm install -g cdk-cross-account-plugin
+git clone https://github.com/cosgiant/cdk-cross-account-plugin.git
+./cdk-cross-account-plugin/scripts/install-global.sh v3.0.1
 ```
+
+Plain `npm install -g github:cosgiant/cdk-cross-account-plugin#v3.0.1` is **not**
+reliable — on npm ≥10, global installs of git dependencies can leave a dangling
+symlink to npm's own (self-deleting) temp clone cache, so the plugin silently
+fails to load with no install-time error. The script clones to a persistent
+location and links from there instead, avoiding that npm bug. AWS CDK's plugin
+loader also requires the plugin to be installed globally — a project-local
+`node_modules` is never checked.
 
 Make sure your `~/.aws/config` and `~/.aws/credentials` files are configured with the profiles you intend to use.
 

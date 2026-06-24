@@ -64,7 +64,6 @@ if (!envReady) {
 (ssoReady ? describe : describe.skip)('SSO integration', () => {
     let tmpDir: string;
     let originalCwd: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let src: any;
 
     beforeAll(() => {
@@ -85,10 +84,12 @@ if (!envReady) {
         process.chdir(tmpDir);
 
         // Load plugin after chdir so cdk.json lookup resolves correctly.
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        // Must be a runtime require() (not a static import) — the plugin's
+        // canProvideCredentials() reads cdk.json from process.cwd() lazily,
+        // so loading order relative to the chdir() above matters.
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
         const plugin = require('../../src/index');
         plugin.init({
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             registerCredentialProviderSource: (s: any) => { src = s; },
         });
     });
