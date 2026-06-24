@@ -8,6 +8,17 @@ export class JsonStore {
     private data: Record<string, unknown>;
     private static readonly FORBIDDEN_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 
+    private static assertSafePath(parts: string[]): void {
+        if (parts.length === 0) {
+            throw new Error('Invalid key: empty path');
+        }
+        for (const part of parts) {
+            if (part.length === 0 || JsonStore.FORBIDDEN_PATH_SEGMENTS.has(part)) {
+                throw new Error('Invalid key: contains forbidden or empty path segment');
+            }
+        }
+    }
+
     constructor() {
         const dir = resolvePath(homedir(), '.config', 'cdk-cross-account-plugin');
         if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -35,21 +46,16 @@ export class JsonStore {
 
     set(key: string, value: unknown): void {
         const parts = key.split('.');
+        JsonStore.assertSafePath(parts);
         let obj = this.data as Record<string, unknown>;
         for (let i = 0; i < parts.length - 1; i++) {
             const part = parts[i];
-            if (JsonStore.FORBIDDEN_PATH_SEGMENTS.has(part)) {
-                throw new Error('Invalid key: contains forbidden path segment');
-            }
             if (!Object.prototype.hasOwnProperty.call(obj, part) || typeof obj[part] !== 'object' || obj[part] === null) {
                 obj[part] = Object.create(null) as Record<string, unknown>;
             }
             obj = obj[part] as Record<string, unknown>;
         }
         const lastPart = parts[parts.length - 1];
-        if (JsonStore.FORBIDDEN_PATH_SEGMENTS.has(lastPart)) {
-            throw new Error('Invalid key: contains forbidden path segment');
-        }
         obj[lastPart] = value;
         writeFileSync(this.path, JSON.stringify(this.data, null, 2));
     }
