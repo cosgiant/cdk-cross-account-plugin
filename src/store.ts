@@ -6,6 +6,7 @@ import { resolve as resolvePath } from 'path';
 export class JsonStore {
     readonly path: string;
     private data: Record<string, unknown>;
+    private static readonly FORBIDDEN_PATH_SEGMENTS = new Set(['__proto__', 'prototype', 'constructor']);
 
     constructor() {
         const dir = resolvePath(homedir(), '.config', 'cdk-cross-account-plugin');
@@ -34,6 +35,9 @@ export class JsonStore {
 
     set(key: string, value: unknown): void {
         const parts = key.split('.');
+        if (parts.some((part) => JsonStore.FORBIDDEN_PATH_SEGMENTS.has(part))) {
+            throw new Error('Invalid key: contains forbidden path segment');
+        }
         let obj = this.data as Record<string, unknown>;
         for (let i = 0; i < parts.length - 1; i++) {
             if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) obj[parts[i]] = {};
