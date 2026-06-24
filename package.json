@@ -39,5 +39,8 @@
   "optionalDependencies": {
     "aws-cdk": "^2.95.1",
     "c9": "^3.1.3534"
+  },
+  "overrides": {
+    "js-yaml": "4.2.0"
   }
 }

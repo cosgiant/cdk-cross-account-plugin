@@ -71,7 +71,7 @@ function getRegisteredSource(): CredentialProviderSource {
 }
 
 function mockStore() {
-    return (JsonStore as jest.Mock).mock.results[0].value as {
+    return (JsonStore as unknown as jest.Mock).mock.results[0].value as {
         has: jest.Mock;
         get: jest.Mock;
         set: jest.Mock;
