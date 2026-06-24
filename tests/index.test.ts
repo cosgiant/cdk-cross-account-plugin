@@ -57,8 +57,9 @@ import { parseKnownFiles } from '@smithy/shared-ini-file-loader';
 import { find as findFiles, read as readFile } from 'fs-jetpack';
 import { JsonStore } from '../src/store';
 
-// Load the plugin singleton
-const plugin = require('../src/index');
+// Load the plugin singleton (src/index.ts uses `export =`, the CJS-style
+// import is required to get the actual exported value with correct typing)
+import plugin = require('../src/index');
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
