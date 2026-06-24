@@ -31,10 +31,10 @@ pinned to a release tag:
 
 ```bash
 git clone https://github.com/cosgiant/cdk-cross-account-plugin.git
-./cdk-cross-account-plugin/scripts/install-global.sh v3.0.2
+./cdk-cross-account-plugin/scripts/install-global.sh v3.0.3
 ```
 
-Plain `npm install -g github:cosgiant/cdk-cross-account-plugin#v3.0.2` is **not**
+Plain `npm install -g github:cosgiant/cdk-cross-account-plugin#v3.0.3` is **not**
 reliable — on npm ≥10, global installs of git dependencies can leave a dangling
 symlink to npm's own (self-deleting) temp clone cache, so the plugin silently
 fails to load with no install-time error. The script clones to a persistent
