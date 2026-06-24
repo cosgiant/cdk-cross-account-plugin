@@ -55,8 +55,20 @@ export class JsonStore {
             }
             obj = obj[part] as Record<string, unknown>;
         }
+        // Deliberately re-checked here even though assertSafePath(parts)
+        // above already covers lastPart: CodeQL's prototype-pollution
+        // analysis (js/prototype-pollution-utility) only recognizes a
+        // guard as covering this write when it's an inline literal
+        // comparison immediately preceding it — a check in an earlier
+        // statement, or one that goes through a Set/Map lookup, doesn't
+        // get traced as a sanitizer for this specific line.
         const lastPart = parts[parts.length - 1];
-        if (lastPart.length === 0 || JsonStore.FORBIDDEN_PATH_SEGMENTS.has(lastPart)) {
+        if (
+            lastPart.length === 0 ||
+            lastPart === '__proto__' ||
+            lastPart === 'prototype' ||
+            lastPart === 'constructor'
+        ) {
             throw new Error('Invalid key: contains forbidden or empty path segment');
         }
         obj[lastPart] = value;
