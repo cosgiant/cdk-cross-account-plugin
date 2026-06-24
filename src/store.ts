@@ -40,7 +40,11 @@ export class JsonStore {
         }
         let obj = this.data as Record<string, unknown>;
         for (let i = 0; i < parts.length - 1; i++) {
-            if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) obj[parts[i]] = {};
+            if (typeof obj[parts[i]] !== 'object' || obj[parts[i]] === null) {
+                // Object.create(null) has no prototype to pollute, even if a
+                // forbidden segment were ever to slip past the check above.
+                obj[parts[i]] = Object.create(null) as Record<string, unknown>;
+            }
             obj = obj[parts[i]] as Record<string, unknown>;
         }
         obj[parts[parts.length - 1]] = value;
