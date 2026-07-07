@@ -18,7 +18,7 @@ set -euo pipefail
 # global node_modules, so the clone below must live somewhere permanent —
 # NOT a mktemp dir that gets cleaned up after this script exits.
 
-REF="${1:-v3.0.3}"
+REF="${1:-v3.0.4}"
 REPO_URL="https://github.com/cosgiant/cdk-cross-account-plugin.git"
 INSTALL_DIR="${HOME}/.cdk-cross-account-plugin"
 

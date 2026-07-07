@@ -4,8 +4,8 @@ This document describes how to set up a local development environment for contri
 
 ## Prerequisites
 
-- Node.js 18 or later (see below)
-- npm 9 or later (bundled with Node.js)
+- Node.js 22 or later (see below)
+- npm 10 or later (bundled with Node.js)
 - TypeScript — installed automatically as a dev dependency
 
 ## Install Node.js
@@ -16,15 +16,15 @@ Use [nvm](https://github.com/nvm-sh/nvm) (recommended) to manage Node.js version
 # Install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
 
-# Install and use Node.js 20 LTS
-nvm install 20
-nvm use 20
+# Install and use Node.js 22 LTS
+nvm install 22
+nvm use 22
 ```
 
 Alternatively, use the [NodeSource packages](https://github.com/nodesource/distributions) for Debian/Ubuntu:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
 sudo apt-get install -y nodejs
 ```
 
@@ -101,7 +101,7 @@ The suite verifies:
 npm audit
 ```
 
-All production dependencies are pinned to exact versions in `package.json` per org security policy. Run `npm audit fix` to apply safe lock-file-only upgrades when vulnerabilities are reported. Upgrades that require source changes (e.g. major version bumps) must be applied manually.
+All production dependencies are pinned to exact versions in `package.json`. Run `npm audit fix` to apply safe lock-file-only upgrades when vulnerabilities are reported. Upgrades that require source changes (e.g. major version bumps) must be applied manually.
 
 ## Key Dependencies
 
@@ -110,6 +110,6 @@ All production dependencies are pinned to exact versions in `package.json` per o
 | `@aws-sdk/client-sso` | AWS SSO credential resolution |
 | `@aws-sdk/credential-providers` | Named profile + MFA credential resolution |
 | `@smithy/shared-ini-file-loader` | Parses `~/.aws/config` to detect profile types |
-| `@inquirer/prompts` | Interactive MFA token code prompt |
-| `conf` | Persistent local credential cache |
+| `readline` (Node built-in) | Interactive MFA token code prompt |
+| `JsonStore` (internal, `src/store.ts`) | Persistent local credential cache — CJS-compatible replacement for `conf` |
 | `@aws-cdk/cli-plugin-contract` | TypeScript types for the CDK plugin interface (dev only) |

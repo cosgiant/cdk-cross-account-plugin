@@ -31,10 +31,10 @@ pinned to a release tag:
 
 ```bash
 git clone https://github.com/cosgiant/cdk-cross-account-plugin.git
-./cdk-cross-account-plugin/scripts/install-global.sh v3.0.3
+./cdk-cross-account-plugin/scripts/install-global.sh v3.0.4
 ```
 
-Plain `npm install -g github:cosgiant/cdk-cross-account-plugin#v3.0.3` is **not**
+Plain `npm install -g github:cosgiant/cdk-cross-account-plugin#v3.0.4` is **not**
 reliable — on npm ≥10, global installs of git dependencies can leave a dangling
 symlink to npm's own (self-deleting) temp clone cache, so the plugin silently
 fails to load with no install-time error. The script clones to a persistent
@@ -108,7 +108,7 @@ The plugin prompts interactively for the MFA token code and caches the resulting
 
 ## Credential Caching
 
-Temporary credentials (both SSO and MFA-based) are cached on disk using [`conf`](https://github.com/sindresorhus/conf). The cache is keyed by profile name and invalidated when the credentials expire. Cache location is printed at plugin load time when debug logging is enabled.
+Temporary credentials (both SSO and MFA-based) are cached on disk using `JsonStore` (internal `src/store.ts`), a CJS-compatible credential cache. The cache is keyed by profile name and invalidated when the credentials expire. Cache location is printed at plugin load time when debug logging is enabled.
 
 ---
 
